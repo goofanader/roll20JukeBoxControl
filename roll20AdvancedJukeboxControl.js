@@ -1,8 +1,11 @@
 //Roll20 Advanced Roll20 Jukebox Control v1.0.0
+// Created by CaitlinBuckley (https://github.com/catlinbuckley/roll20JukeBoxControl)
 
 on('ready',function(){
     'use strict';
     var allowPlayers = false, // this to true if you wish to allow players control over jukebox
+    crossfadeTime = 1000,
+    volumeFadeSpeed = 2,
     defaults = {
             css: {
                 button: {
@@ -17,27 +20,27 @@ on('ready',function(){
             }
         },
     templates = {};
-    
+
     buildTemplates();
-    
+
     on("chat:message", function(msg) {
         var args = msg.content.split(/\s+/);
-        
+
         if (args[0] === '!jukebox' && (playerIsGM(msg.playerid) || allowPlayers)) {
             var allsongs = findObjs({
                     _type: 'jukeboxtrack',
                 });
-                
+
             if (args.length === 1) {
-                
-                        
+
+
                 var songs = allsongs
                     .map(function (song) {
                         return song.get('title');
                     })
                     .sort()
                     .join('|'),
-                    
+
                 playingSongs = allsongs
                     .filter(function (song) {
                         return song.get('playing');
@@ -47,47 +50,47 @@ on('ready',function(){
                     })
                     .sort()
                     .join('|'),
-                
+
                 playButton = makeButton(
                     '!jukebox play ?{Select a song to play|'+songs+'}', 'Play a song', '#CDAE88', 'black'
                 ),
-                
+
                 crossfadeButton = makeButton(
                     '!jukebox crossfade ?{Select a song to crossfade to|'+songs+'}', 'Crossfade to a song', '#CDAE88', 'black'
                 ),
-                
+
                 stopButton = makeButton(
                     '!jukebox stop ?{Select a song to stop|'+playingSongs+'}', 'Stop a song', '#CDAE88', 'black'
                 ),
-                
+
                 fadeInButton = makeButton(
                     '!jukebox fadein ?{Select a song to fade in|'+songs+'}', 'Fade a song in', '#CDAE88', 'black'
                 ),
-                
+
                 fadeOutButton = makeButton(
                     '!jukebox fadeout ?{Select a song to fade out|'+playingSongs+'}', 'Fade a song out', '#CDAE88', 'black'
                 ),
-                
+
                 stopAllButton = makeButton(
                     '!jukebox stopall', 'Stop all songs', '#CDAE88', 'black'
                 ),
-                
+
                 fadeAllButton = makeButton(
                     '!jukebox fadeallout', 'Fade all songs out', '#CDAE88', 'black'
                 );
-        
+
                 sendChat(msg.who, '/w gm ' + playButton + stopButton + crossfadeButton + fadeInButton + fadeOutButton + stopAllButton + fadeAllButton);
             } else {
                 if (args[1] === 'play') {
                     var songTitle = args.splice(2).join(' ');
                     play(getSong(songTitle, allsongs));
                 }
-                
+
                 if (args[1] === 'stop') {
                     var songTitle = args.splice(2).join(' ');
                     stop(getSong(songTitle, allsongs));
                 }
-                
+
                 if (args[1] === 'crossfade') {
                     var songTitle = args.splice(2).join(' ');
                     allsongs.forEach(function(song) {
@@ -97,17 +100,17 @@ on('ready',function(){
                     });
                     fadeIn(getSong(songTitle, allsongs));
                 }
-                
+
                 if (args[1] === 'fadein') {
                     var songTitle = args.splice(2).join(' ');
                     fadeIn(getSong(songTitle, allsongs));
                 }
-                
+
                 if (args[1] === 'fadeout') {
                     var songTitle = args.splice(2).join(' ');
                     fadeOut(getSong(songTitle, allsongs));
                 }
-                
+
                 if (args[1] === 'stopall') {
                     allsongs.forEach(function(song) {
                         if (song.get('playing')) {
@@ -115,7 +118,7 @@ on('ready',function(){
                         }
                     });
                 }
-                
+
                 if (args[1] === 'fadeallout') {
                     allsongs.forEach(function(song) {
                         if (song.get('playing')) {
@@ -126,7 +129,7 @@ on('ready',function(){
             }
         }
     });
-    
+
     function isJson(str) {
         try {
             JSON.parse(str);
@@ -135,7 +138,7 @@ on('ready',function(){
         }
         return true;
     }
-    
+
     function getSong(songTitle, songs) {
         var selectedSong;
         songs.forEach(function(song) {
@@ -145,58 +148,58 @@ on('ready',function(){
         });
         return selectedSong;
     }
-    
+
     function play (song) {
         if (song) {
             song.set({'playing': true, 'softstop': false});
         }
     }
-    
+
     function stop (song) {
         if (song) {
             song.set({'playing': false, 'softstop': false});
         }
     }
-    
+
     function fadeOut(song) {
         if (song) {
             var volume = song.get('volume') || 0;
             var originalVolume = song.get('volume') || 0;
-            
+
             var i = setInterval(function(){
 
-                volume = volume - 7.5;
+                volume = volume - volumeFadeSpeed;
                 song.set({'volume': volume});
-                
+
                 if(volume <= 0) {
                     song.set({'playing': false, 'softstop': false, 'volume': originalVolume});
                     clearInterval(i);
                 }
-            }, 1000);
-        
+            }, crossfadeTime);
+
         }
     }
-    
+
     function fadeIn(song) {
         if (song) {
             var volume = 0;
             var originalVolume = song.get('volume') || 0;
-            
+
             song.set({'playing': true, 'softstop': false, 'volume': 0});
-            
+
             var i = setInterval(function(){
 
-                volume = volume + 7.5;
+                volume = volume + volumeFadeSpeed;
                 song.set({'volume': volume});
-                
+
                 if(volume >= originalVolume) {
                     song.set({'volume': originalVolume});
                     clearInterval(i);
                 }
-            }, 1000);
-        } 
+            }, crossfadeTime);
+        }
     }
-    
+
     function buildTemplates() {
         templates.cssProperty =_.template(
             '<%=name %>: <%=value %>;'
@@ -214,7 +217,7 @@ on('ready',function(){
                 '}).join("")'+
             ' %>"'
         );
-        
+
         templates.button = _.template(
             '<a <%= templates.style({'+
                 'defaults: defaults,'+
@@ -223,7 +226,7 @@ on('ready',function(){
                 '}) %> href="<%= command %>"><%= label||"Button" %></a>'
         );
     }
-    
+
     function makeButton (command, label, backgroundColor, color){
         return templates.button({
             command: command,
